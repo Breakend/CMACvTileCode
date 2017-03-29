@@ -50,15 +50,19 @@ class Tiling(object):
         # by casting to int.
         mapped_x = ((self.n_partition + 1) * mapped_x /
                     (max_val - self.min))
-        # shape: (num_tilings, num_features)
+        # shape: (n_tiling, n_partition, n_partition)
+        
+        # Update tiles
+        tiles = mapped_x
         q_x = tf.to_int32(tf.transpose(mapped_x))
         return q_x
+
 
 def main():
     test = Tiling(3.0, 10.0, (0.0, 10.0))
 
     q_test = test.tile(np.zeros((10, 10)))
-
+    print np.shape(q_test)
 
 if __name__ == '__main__':
     main()
