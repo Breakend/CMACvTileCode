@@ -5,9 +5,6 @@ import tensorflow as tf
 import numpy as np
 import random
 
-_maxLongintBy4 = _maxLongint // 4       # maximum integer divided by 4
-_randomTable = [random.randrange(_maxLongintBy4) for i in xrange(2048)]   #table of random numbers
-
 # void tiles(
 #  int tiles[],     // provided array will contain the returned tile indices
 #  int num_tilings, // number of tile indices to be returned
@@ -25,26 +22,42 @@ class Tiling(object):
         n_partition: how many partitions to divide the space into for each dimension
         state_range: tuple of floats (x_min, y_min)
     '''
-    def __init__(self, n_tiling, n_partition, state_range, mode='uniform')
+    def __init__(self, n_tiling, n_partition, state_range, mode='uniform'):
         # if(mode = 'asm'): # TODO: implement asymmetrical tiling ?
         self.min, self.max = state_range
         self.n_partition = n_partition
-        self.width = float(self.max-self.min)/self.n_partition
+        self.width = tf.Variable(float(self.max-self.min)/self.n_partition, dtype=tf.float64)
+        self.n_tiling = n_tiling
 
         # Now create n_tiling n_partition x n_partition tilings
-        self.tiles = tf.placeholder(tf.float32, shape=[self.n_tiling, self.n_partition, self.n_partition])
+        self.tiles = tf.placeholder(tf.float64, shape=[self.n_tiling, self.n_partition, self.n_partition])
 
 
-    def eval(self, input)
+    def eval(self, input):
         # TODO:
         return val
 
 
     def tile(self, x):
-        offsets = self.n_partition * range(self.n_tiling) / self.self.n_tiling
+        offsets = self.n_partition * tf.range(self.n_tiling) / self.n_tiling
+        # mapped_x = x.dimshuffle(0, 'x') + offsets.dimshuffle('x', 0)
+        mapped_x = tf.add(tf.expand_dims(x, 1), tf.expand_dims(tf.cast(offsets, tf.float64), 1))
 
+        # Since we have an extra tile:
+        max_val = self.max + self.width
+
+        # Mapping into range [0, num_tiles + 1] to be able to do quantization
+        # by casting to int.
+        mapped_x = ((self.n_partition + 1) * mapped_x /
+                    (max_val - self.min))
+        # shape: (num_tilings, num_features)
+        q_x = tf.to_int32(tf.transpose(mapped_x))
+        return q_x
 
 def main():
+    test = Tiling(3.0, 10.0, (0.0, 10.0))
+
+    q_test = test.tile(np.zeros((10, 10)))
 
 
 if __name__ == '__main__':
