@@ -26,7 +26,7 @@ class TileCoder(object):
         self.input_dims = input_dims
 
         # n_a resolution x resolution tilings
-        self.weights = tf.Variable(tf.zeros([self.n_a + self.resolution * self.input_dims]), name="weights")
+        self.weights = tf.Variable(tf.zeros([self.n_a, self.resolution * self.input_dims]), name="weights")
         # Weight i in the weight table for output x_j,
 
         # TODO: make weights a hashtable
@@ -42,24 +42,25 @@ class TileCoder(object):
 
     def quantize_and_associate(self, x):
         # for all inputs, bound them by the max values
-        mapped_x = tf.clip_by_value(x, self.min, self.max)
+        q = tf.clip_by_value(x, self.min, self.max)
 
         # quantize input
-        q = (self.resolution) * (x - self.min) / (self.max - self.min)
+        #TODO: can we replace with tf.quantize_v2
+        q = (self.resolution) * (q - self.min) / (self.max - self.min)
 
         q = tf.clip_by_value(q, 0.0, self.resolution - 1) # enforce 0 \le q < resolution
 
-        import pdb; pdb.set_trace()
-        p = tf.add(tf.tile(q, []), tf.expand_dims (tf.cast(self.offsets, tf.float32), 0)) / self.n_a
+        # p = tf.add(tf.tile(q, []), tf.expand_dims (tf.cast(self.offsets, tf.float32), 0)) / self.n_a
+        p = tf.expand_dims(q, 1) + tf.cast(self.offsets, tf.float32) / self.n_a
 
         p = tf.to_int32(tf.transpose(p))
 
         indices = tf.range(self.n_a)
-        import pdb; pdb.set_trace()
+        # import pdb; pdb.set_trace()
 
         # TODO: why is this a thing?
-        for i in range(self.input_dims):
-            indices += [p[:,i]]
+        # for i in range(self.input_dims):
+        #     indices += [p[:,i]]
         return indices
         # TODO: hashing
 
