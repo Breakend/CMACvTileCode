@@ -21,7 +21,7 @@ def get_dataset(num_samples, min_val, max_val):
 
 tile_coder = TileCoder(
     state_range= (0, 7.0), resolution=10,
-    n_tiling=10, dim=2,
+    n_a=10, input_dims=2,
     learning_rate=0.1)
 
 dataset = get_dataset(10000, 0, 7)

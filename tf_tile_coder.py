@@ -9,50 +9,63 @@ from mpl_toolkits.mplot3d import Axes3D
 class TileCoder(object):
     '''
     Args:
-        n_tiling: dimension of the state space
+        n_a: the number of association units
         resolution: how many partitions to divide the space into for each dimension
-        state_range: tuple of floats (x_min, y_min)
+        state_range: tuple of floats (x_min, x_max), that is the
     '''
-    def __init__(self, n_tiling, resolution, state_range, dim, mode='uniform', learning_rate=.1):
+    def __init__(self, n_a, resolution, state_range, input_dims, mode='uniform', learning_rate=.1):
         # if(mode = 'asm'): # TODO: implement asymmetrical tiling ?
         self.min, self.max = state_range
         self.resolution = resolution
         self.learning_rate = learning_rate
 
-        # This is the width of the receptive field
+        # This is the width of the receptive field?
+        #TODO: do we need this...
         self.width = np.float32(self.max-self.min)/self.resolution
-        self.n_tiling = n_tiling
-        self.dim = dim
+        self.n_a = n_a
+        self.input_dims = input_dims
 
-        # n_tiling resolution x resolution tilings
-        self.tiles = tf.Variable(tf.zeros([self.n_tiling + self.resolution * self.dim]), name="weights")
+        # n_a resolution x resolution tilings
+        self.weights = tf.Variable(tf.zeros([self.n_a + self.resolution * self.input_dims]), name="weights")
+        # Weight i in the weight table for output x_j,
 
+        # TODO: make weights a hashtable
+        # https://www.tensorflow.org/versions/master/api_docs/python/tf/contrib/lookup/HashTable?hl=bn
         # these are the offsets into the receptive field association units (tiles)
-        self.offsets = self.width * tf.range(self.n_tiling) / self.n_tiling
+        # self.offsets = self.num_dims * tf.range(self.input_dims)
+        self.offsets = tf.range(self.n_a)
+        self.offsets = tf.tile(self.offsets, [self.input_dims])
+        self.offsets = tf.reshape(self.offsets, [self.input_dims, self.n_a])
+        # should be tensor of size input_dims X n_a,
+        # that is n_a offsets per dimension of the input ranging from 0 to n_a
+        # import pdb; pdb.set_trace()
 
     def quantize_and_associate(self, x):
         # for all inputs, bound them by the max values
-        # mapped_x = tf.clip_by_value(x, self.min, self.max)
+        mapped_x = tf.clip_by_value(x, self.min, self.max)
 
         # quantize input
-        q = (self.resolution + 1) * (x - self.min) / (self.max - self.min)
+        q = (self.resolution) * (x - self.min) / (self.max - self.min)
 
-        q = tf.clip_by_value(q, 0.0, self.resolution) # enforce 0 \le q < resolution
+        q = tf.clip_by_value(q, 0.0, self.resolution - 1) # enforce 0 \le q < resolution
 
-        p = tf.add(tf.expand_dims(x, 1), tf.expand_dims (tf.cast(self.offsets, tf.float32), 0)) / self.n_tiling
+        import pdb; pdb.set_trace()
+        p = tf.add(tf.tile(q, []), tf.expand_dims (tf.cast(self.offsets, tf.float32), 0)) / self.n_a
+
         p = tf.to_int32(tf.transpose(p))
 
-        indices = tf.range(self.n_tiling)
+        indices = tf.range(self.n_a)
+        import pdb; pdb.set_trace()
 
         # TODO: why is this a thing?
-        for i in range(self.dim):
+        for i in range(self.input_dims):
             indices += [p[:,i]]
         return indices
         # TODO: hashing
 
     def map(self, x):
         indices = self.quantize_and_associate(x)
-        selected = tf.gather(self.tiles, tf.squeeze(indices))
+        selected = tf.gather(self.weights, tf.squeeze(indices))
         y_hat = tf.reduce_sum(selected)
         return y_hat
 
@@ -61,17 +74,17 @@ class TileCoder(object):
         # are used for computing y_hat. Since
         # "y_hat = T.sum(selected)", T.grad will returns
         # 1 for corresponding weights and 0 for others.
-        gradients = tf.gradients(y_hat, self.tiles)
-        learning_rate = learning_rate / self.n_tiling
+        gradients = tf.gradients(y_hat, self.weights)
+        learning_rate = learning_rate / self.n_a
 
         update = learning_rate * (y - y_hat)
-        update_op = tf.assign(self.tiles, tf.add(self.tiles, update))
+        update_op = tf.assign(self.weights, tf.add(self.weights, update))
         return update_op
-        # batch_updates = [(self.tiles, self.tiles + update)]
+        # batch_updates = [(self.weights, self.weights + update)]
         # return batch_updates
 
     def train(self, dataset, fig):
-        x_input = tf.placeholder(tf.float32, shape=[self.dim])
+        x_input = tf.placeholder(tf.float32, shape=[self.input_dims])
         y_input = tf.placeholder(tf.float32, shape=[None])
         y_hat = self.map(x_input)
         updates = self.update_rule(y_input, y_hat, 0.1)
@@ -81,7 +94,7 @@ class TileCoder(object):
         for i, datapoint in enumerate(dataset):
             x, y = datapoint
             x = np.array(x)
-            # x = np.reshape(x, (-1, 2))
+
             y = np.array(y)
             y = np.reshape(y, (1,))
             # import pdb; pdb.set_trace()
