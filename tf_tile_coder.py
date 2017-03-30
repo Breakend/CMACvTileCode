@@ -20,7 +20,7 @@ class TileCoder(object):
         self.learning_rate = learning_rate
 
         # This is the width of the receptive field
-        self.width = tf.Variable(float(self.max-self.min)/self.resolution, dtype=tf.float32)
+        self.width = np.float32(self.max-self.min)/self.resolution
         self.n_tiling = n_tiling
         self.dim = dim
 
@@ -28,11 +28,11 @@ class TileCoder(object):
         self.tiles = tf.Variable(tf.zeros([self.n_tiling + self.resolution * self.dim]), name="weights")
 
         # these are the offsets into the receptive field association units (tiles)
-        self.offsets = self.resolution * tf.range(self.n_tiling) / self.n_tiling
+        self.offsets = self.width * tf.range(self.n_tiling) / self.n_tiling
 
     def quantize_and_associate(self, x):
         # for all inputs, bound them by the max values
-        mapped_x = tf.clip_by_value(x, self.min, self.max)
+        # mapped_x = tf.clip_by_value(x, self.min, self.max)
 
         # quantize input
         q = (self.resolution + 1) * (x - self.min) / (self.max - self.min)
