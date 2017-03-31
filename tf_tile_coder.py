@@ -26,7 +26,7 @@ class TileCoder(object):
         self.input_dims = input_dims
 
         # n_a resolution x resolution tilings
-        self.weights = tf.Variable(tf.zeros([self.n_a, self.resolution * self.input_dims]), name="weights")
+        self.weights = tf.Variable(tf.zeros((self.n_a,) + self.input_dims *(self.resolution,)), name="weights")
         # Weight i in the weight table for output x_j,
 
         # TODO: make weights a hashtable
@@ -34,8 +34,8 @@ class TileCoder(object):
         # these are the offsets into the receptive field association units (tiles)
         # self.offsets = self.num_dims * tf.range(self.input_dims)
         self.offsets = tf.range(self.n_a)
-        self.offsets = tf.tile(self.offsets, [self.input_dims])
-        self.offsets = tf.reshape(self.offsets, [self.input_dims, self.n_a])
+        # self.offsets = tf.tile(self.offsets, [self.input_dims])
+        # self.offsets = tf.reshape(self.offsets, [self.input_dims, self.n_a])
         # should be tensor of size input_dims X n_a,
         # that is n_a offsets per dimension of the input ranging from 0 to n_a
         # import pdb; pdb.set_trace()
@@ -46,40 +46,65 @@ class TileCoder(object):
 
         # quantize input
         #TODO: can we replace with tf.quantize_v2
-        q = (self.resolution) * (q - self.min) / (self.max - self.min)
+        q = (self.resolution ) * (q - self.min) / (self.max - self.min)
 
         q = tf.clip_by_value(q, 0.0, self.resolution - 1) # enforce 0 \le q < resolution
 
         # p = tf.add(tf.tile(q, []), tf.expand_dims (tf.cast(self.offsets, tf.float32), 0)) / self.n_a
-        p = tf.expand_dims(q, 1) + tf.cast(self.offsets, tf.float32) / self.n_a
+        # p = tf.expand_dims(q, 1) + tf.cast(self.offsets, tf.float32) / self.n_a
+        p = tf.add(tf.expand_dims(q, 1), tf.expand_dims(tf.cast(self.offsets, tf.float32), 0)) / self.n_a
 
-        p = tf.to_int32(tf.transpose(p))
 
-        indices = tf.range(self.n_a)
+
+        p = tf.transpose(tf.to_int32(p))
+
+        # indices = tf.tile(tf.reshape(p, [-1]), [self.n_a])
+        # indices = tf.reshape(indices, (self.n_a, self.input_dims, self.resolution))
+        import pdb; pdb.set_trace()
+        # indices = tf.range(self.resolution)
+        # indices = tf.tile(indices, [self.input_dims])
+        # indices = tf.reshape(indices, [self.input_dims, self.n_a])
+        # indices = tf.concat([indices, p], axis=0)
+        indices = tf.reshape(tf.range(self.n_a), [-1, 1])
+
+
         # import pdb; pdb.set_trace()
+
+        # indices += 1
+
+        for i in range(self.input_dims):
+            indices = tf.concat([indices, tf.reshape(p[:,i], [-1, 1])], axis=1)
 
         # TODO: why is this a thing?
         # for i in range(self.input_dims):
-        #     indices += [p[:,i]]
+            # indices +=
+        # indices
         return indices
         # TODO: hashing
 
     def map(self, x):
         indices = self.quantize_and_associate(x)
-        selected = tf.gather(self.weights, tf.squeeze(indices))
+        selected = tf.gather_nd(self.weights, indices)
         y_hat = tf.reduce_sum(selected)
-        return y_hat
+        return y_hat, indices
 
-    def update_rule(self, y, y_hat, learning_rate):
+    def update_rule(self, y, y_hat, learning_rate, indices):
         # grad is only used to locate the weights which
         # are used for computing y_hat. Since
         # "y_hat = T.sum(selected)", T.grad will returns
         # 1 for corresponding weights and 0 for others.
-        gradients = tf.gradients(y_hat, self.weights)
+        # gradients = tf.gradients(y_hat, self.weights)
+        # instead of this can select the weights to update by multiplying
+        # the update by ones where those indices are
         learning_rate = learning_rate / self.n_a
+        delta = tf.SparseTensor(tf.cast(indices,tf.int64), tf.ones(self.resolution), self.weights.get_shape())
+        c = tf.zeros(self.weights.get_shape())
 
-        update = learning_rate * (y - y_hat)
+        result = c + tf.sparse_tensor_to_dense(delta)
+
+        update = tf.cast(result, tf.float32) * learning_rate * (y - y_hat)
         update_op = tf.assign(self.weights, tf.add(self.weights, update))
+        # update_op = tf.scatter_nd(indices, update)
         return update_op
         # batch_updates = [(self.weights, self.weights + update)]
         # return batch_updates
@@ -87,8 +112,8 @@ class TileCoder(object):
     def train(self, dataset, fig):
         x_input = tf.placeholder(tf.float32, shape=[self.input_dims])
         y_input = tf.placeholder(tf.float32, shape=[None])
-        y_hat = self.map(x_input)
-        updates = self.update_rule(y_input, y_hat, 0.1)
+        y_hat, indices = self.map(x_input)
+        updates = self.update_rule(y_input, y_hat, 0.1, indices)
         sess = tf.Session()
         sess.run(tf.global_variables_initializer())
 
