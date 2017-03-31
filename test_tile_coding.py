@@ -3,12 +3,21 @@ import matplotlib.pyplot as plt
 from matplotlib import cm
 from mpl_toolkits.mplot3d import Axes3D
 from tf_tile_coder import TileCoder
-from utils import plot_function
+from utils import *
 
 # max_val = 0
 
+f_type = "torus"
+
 def target_function(x):
-    return np.sin(x[0]) + np.cos(x[1]) + 0.01 * np.random.randn()
+    if f_type == "wave":
+        return np.sin(x[0]) + np.cos(x[1]) + 0.01 * np.random.randn()
+    elif f_type == "torus":
+        return (0.16 - (0.6 - (x[0]**2 + x[1])**2))**.5
+    elif f_type == "tube":
+        return 1.0 / (15.0*(x[0]**2 + x[1]**2))
+    else:
+        raise Exception("No such function")
 
 def get_dataset(num_samples, min_val, max_val):
     # num_features is assumed to be 2 for this example.
@@ -26,7 +35,7 @@ tile_coder = TileCoder(
     n_a=50, input_dims=2,
     learning_rate=0.1)
 
-dataset = get_dataset(10000, 0, 10)
+dataset = get_dataset(10000, 0, 7)
 
 fig = plt.figure(figsize=np.array([12, 5]))
 ax_0 = fig.add_subplot(1, 2, 1, projection='3d')
