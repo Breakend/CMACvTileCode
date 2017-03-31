@@ -1,6 +1,6 @@
 import tensorflow as tf
 import numpy as np
-from utils import plot_function
+from utils import *
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import cm
@@ -60,7 +60,7 @@ class TileCoder(object):
 
         # indices = tf.tile(tf.reshape(p, [-1]), [self.n_a])
         # indices = tf.reshape(indices, (self.n_a, self.input_dims, self.resolution))
-        import pdb; pdb.set_trace()
+        # import pdb; pdb.set_trace()
         # indices = tf.range(self.resolution)
         # indices = tf.tile(indices, [self.input_dims])
         # indices = tf.reshape(indices, [self.input_dims, self.n_a])
@@ -109,13 +109,15 @@ class TileCoder(object):
         # batch_updates = [(self.weights, self.weights + update)]
         # return batch_updates
 
-    def train(self, dataset, fig):
+    def train(self, dataset, fig, gt_func):
         x_input = tf.placeholder(tf.float32, shape=[self.input_dims])
         y_input = tf.placeholder(tf.float32, shape=[None])
         y_hat, indices = self.map(x_input)
         updates = self.update_rule(y_input, y_hat, 0.1, indices)
         sess = tf.Session()
         sess.run(tf.global_variables_initializer())
+
+        errors = []
 
         for i, datapoint in enumerate(dataset):
             x, y = datapoint
@@ -127,6 +129,7 @@ class TileCoder(object):
             preds = sess.run(updates, feed_dict={x_input:x.astype('float32'), y_input:y.astype('float32')})
 
             eval_ = lambda g : sess.run(y_hat, feed_dict={x_input : g})
+
             if i <= 20:
                 step = 5
             elif i <= 100:
@@ -135,8 +138,19 @@ class TileCoder(object):
                 step = 100
             else:
                 step = 1000
+
+            if i % 100 == 0:
+                errors.append(get_mse(eval_, gt_func))
+
             if i % step == 0:
                 plot_function(fig, eval_, 'Seen points: ' + str(i))
 
             if i == len(dataset) - 1:
                 plot_function(fig, eval_, 'Learned Function', True)
+
+        fig = plt.figure(1)
+        # import pdb; pdb.set_trace()
+        plt.plot(errors)
+        plt.draw()
+        plt.savefig('output_images/mse__cmac.png')
+        plt.pause(.0001)

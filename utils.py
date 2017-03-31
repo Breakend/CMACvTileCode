@@ -2,8 +2,23 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import cm
 from mpl_toolkits.mplot3d import Axes3D
+from sklearn.metrics import mean_squared_error
 
-def plot_function(ax, function, text, hold=False):
+def get_mse(function, gt_function):
+    x_0 = np.linspace(0, 7, 100)
+    x_1 = np.linspace(0, 7, 100)
+    z = np.zeros((100, 100))
+    z_g = np.zeros((100, 100))
+
+    for i in range(100):
+        for j in range(100):
+            z[j, i] = function(np.array([x_0[i], x_1[j]]))
+            z_g[j, i] = gt_function(np.array([x_0[i], x_1[j]]))
+
+    return mean_squared_error(z,z_g)
+
+def plot_function(ax, function, text, hold=False, tag='cmac'):
+    #TODO: change this
     ax.cla()
     x_0 = np.linspace(0, 7, 100)
     x_1 = np.linspace(0, 7, 100)
@@ -25,5 +40,5 @@ def plot_function(ax, function, text, hold=False):
         plt.show()
     else:
         plt.draw()
-        plt.savefig(text + '.png')
+        plt.savefig('output_images/' + text + '__' + tag + '.png')
         plt.pause(.0001)
