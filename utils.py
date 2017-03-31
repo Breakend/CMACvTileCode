@@ -4,6 +4,13 @@ from matplotlib import cm
 from mpl_toolkits.mplot3d import Axes3D
 from sklearn.metrics import mean_squared_error
 
+# NOTE: This implementation is based off of a combination of
+# https://gist.github.com/bionicv/3703465
+# https://github.com/mohammadpz/Theano_Tile_Coding
+# and q12.org/phd/thesis/chapter3.pdf
+# Some parts may be directly taken from there, but in general everything is heavily modified
+# to fit the tensorflow paradigm
+
 def get_mse(function, gt_function):
     x_0 = np.linspace(0, 7, 100)
     x_1 = np.linspace(0, 7, 100)

@@ -1,4 +1,3 @@
-# NOTE: much of this was taken from http://stackoverflow.com/questions/41550966/why-deep-nn-cant-approximate-simple-lnx-function
 import tensorflow as tf
 import numpy as np
 import matplotlib.pyplot as plt
@@ -7,27 +6,33 @@ from mpl_toolkits.mplot3d import Axes3D
 from utils import *
 
 # Functions from: https://www.benjoffe.com/code/tools/functions3d/examples
+# NOTE: This implementation is based off of a combination of
+# https://gist.github.com/bionicv/3703465
+# https://github.com/mohammadpz/Theano_Tile_Coding
+# and q12.org/phd/thesis/chapter3.pdf
+# and http://stackoverflow.com/questions/41550966/why-deep-nn-cant-approximate-simple-lnx-function
+# Some parts may be directly taken from there, but in general everything is heavily modified
 
-f_type = "wave"
+f_type = "cone"
 
 def target_function_batch(x):
     # import pdb; pdb.set_trace()
     if f_type == "wave":
         return np.sin(x[:,0]) + np.cos(x[:,1]) + 0.01 * np.random.randn()
-    elif f_type == "torus":
-        return (0.16 - (0.6 - (x[:,0]**2 + x[:,1])**2))**.5
-    elif f_type == "tube":
-        return 1.0 / (15.0*(x[:,0]**2 + x[:,1]**2))
+    elif f_type == "cone":
+        xs = np.power(x[:,0]*2.-4, 2)
+        ys = np.power(x[:,1]*2.-4, 2)
+        return np.sin(np.sqrt(xs + ys))
     else:
         raise Exception("No such function")
 
 def target_function(x):
     if f_type == "wave":
         return np.sin(x[0]) + np.cos(x[1]) + 0.01 * np.random.randn()
-    elif f_type == "torus":
-        return (0.16 - (0.6 - (x[0]**2 + x[1])**2))**.5
-    elif f_type == "tube":
-        return 1.0 / (15.0*(x[0]**2 + x[1]**2))
+    elif f_type == "cone":
+        xs = np.power(x[0]*2.-4, 2)
+        ys = np.power(x[1]*2.-4, 2)
+        return np.sin(np.sqrt(xs + ys))
     else:
         raise Exception("No such function")
 
@@ -47,7 +52,6 @@ def get_mse_mlp(function, gt_function):
 
 
 def plot_function_mlp(ax, function, text, hold=False, tag='cmac'):
-    #TODO: change this
     ax.cla()
     x_0 = np.linspace(0, 7, 100)
     x_1 = np.linspace(0, 7, 100)
@@ -152,15 +156,9 @@ ax_1 = fig.add_subplot(1, 2, 2, projection='3d')
 plot_function(ax_0, target_function, 'Target function', tag='mlp')
 
 for i in range(training_epochs):
-    # for i, datapoint in enumerate(dataset):
     x,y  = get_batch(batch_size, 0, 7)
-    # x, y = datapoint
-    # x = np.array([x])
     y = np.reshape(np.array(y), (batch_size,1))
 
-    # y = np.array(y)
-    # y = np.reshape(y, (1,))
-    # y_in = get_target_result(x_in)
     sess.run(train, feed_dict={x_data: x, y_data: y})
     eval_ = lambda x_vals : sess.run(pred, feed_dict={x_data: x_vals})
 
@@ -182,7 +180,7 @@ for i in range(training_epochs):
 plot_function_mlp(ax_1, eval_, 'Learned Function', True, tag='mlp')
 
 fig = plt.figure(1)
-# import pdb; pdb.set_trace()
+
 plt.plot(np.arange(len(errors))*batch_size, errors)
 plt.draw()
 plt.savefig('output_images/mse__mlp.png')
